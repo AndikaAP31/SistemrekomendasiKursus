@@ -1,7 +1,7 @@
 import re
 import numpy as np
 import pandas as pd
-from typing import Union, List, Dict, Any, Optional
+from typing import Union, List
 import logging
 
 # Configure logging
@@ -46,6 +46,15 @@ def extract_duration_hours(duration_str: Union[str, float, None]) -> float:
     
     duration_str = str(duration_str).lower()
     
+    # Look for X-Y Months pattern
+    months_range_match = re.search(r'(\d+)\s*-\s*(\d+)\s*months?', duration_str)
+    if months_range_match:
+        start_month = float(months_range_match.group(1))
+        end_month = float(months_range_match.group(2))
+        # Take average and convert to hours (assuming 160 hours per month)
+        avg_months = (start_month + end_month) / 2
+        return avg_months * 160
+    
     # Look for hours pattern
     hours_match = re.search(r'(\d+(?:\.\d+)?)\s*(?:hours?|hrs?|jam)', duration_str)
     if hours_match:
@@ -65,6 +74,11 @@ def extract_duration_hours(duration_str: Union[str, float, None]) -> float:
     weeks_match = re.search(r'(\d+(?:\.\d+)?)\s*(?:weeks?|minggu)', duration_str)
     if weeks_match:
         return float(weeks_match.group(1)) * 40
+    
+    # Look for single month pattern
+    single_month_match = re.search(r'(\d+(?:\.\d+)?)\s*(?:months?|bulan)', duration_str)
+    if single_month_match:
+        return float(single_month_match.group(1)) * 160  # assuming 160 hours per month
     
     # If it's just a number
     numbers = re.findall(r'\d+(?:\.\d+)?', duration_str)
@@ -113,32 +127,12 @@ def categorize_duration(hours: Union[float, None]) -> str:
     if pd.isna(hours):
         return 'medium'
     
-    if hours < 5:
+    if hours < 10:
         return 'short'
-    elif hours < 20:
+    elif 10 < hours and hours < 35:
         return 'medium'
     return 'long'
 
-def get_language(text: str) -> str:
-    """
-    Simple heuristic to detect if text is more likely English or Indonesian
-    
-    Args:
-        text: Input text
-        
-    Returns:
-        Detected language code ('en' or 'id')
-    """
-    # Common Indonesian words that don't appear in English
-    indo_words = ['dan', 'atau', 'dengan', 'untuk', 'dalam', 'yang', 'ini', 'itu', 'pada', 'tidak']
-    
-    text = text.lower()
-    indo_count = sum(1 for word in indo_words if word in text.split())
-    
-    # If at least 2 Indonesian words are found, classify as Indonesian
-    if indo_count >= 2:
-        return 'id'
-    return 'en'
 
 def safe_division(numerator: Union[int, float], denominator: Union[int, float]) -> float:
     """

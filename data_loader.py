@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from typing import Dict, List, Optional, Union, Tuple
+from typing import Dict, Optional
 import logging
 import os
 from pathlib import Path
@@ -171,52 +171,90 @@ class DataLoader:
             logger.error(f"Error loading Dicoding data: {e}")
             return pd.DataFrame()
     
-    def _get_price_from_cert_type(self, cert_type):
+    def _calculate_coursera_price_by_level_duration(self, level, duration):
         """
-        Determine price based on certificate type
+        Determine price based on course level and duration with whole number prices
         
         Args:
-            cert_type: Certificate type string
+            level: Course difficulty level
+            duration: Course duration in hours
             
         Returns:
-            Estimated price for the course
+            Whole number price for the course
         """
-        if pd.isna(cert_type):
-            return 0.0
-            
-        cert_type = str(cert_type).lower()
+        # Normalize level for consistent mapping
+        if pd.isna(level):
+            level = "Intermediate"
         
-        # Gunakan hash dari cert_type untuk seed agar konsisten tapi berbeda per kursus
-        seed = hash(cert_type) % 10000
+        level = str(level).lower()
+        
+        # Ensure duration is a number
+        if pd.isna(duration):
+            duration = 10.0
+        else:
+            try:
+                duration = float(duration)
+            except (ValueError, TypeError):
+                duration = 10.0
+        
+        # Categorize duration
+        if duration < 160:
+            duration_category = "Short"
+        elif duration < 320:
+            duration_category = "Medium"
+        else:
+            duration_category = "Long"
+        
+        # Base price matrix based on level and duration
+        price_matrix = {
+            "beginner": {
+                "Short": 30,
+                "Medium": 40,
+                "Long": 50
+            },
+            "intermediate": {
+                "Short": 45,
+                "Medium": 60,
+                "Long": 75
+            },
+            "advanced": {
+                "Short": 70,
+                "Medium": 90,
+                "Long": 110
+            },
+            "all levels": {
+                "Short": 40,
+                "Medium": 55,
+                "Long": 70
+            }
+        }
+        
+        # Add small random variation to avoid all courses having exactly the same price
+        # Use consistent seed based on level and duration to ensure reproducibility
+        seed = hash(f"{level}_{duration_category}") % 10000
         rng = np.random.RandomState(seed)
         
-        # Harga yang lebih realistis dan bervariasi berdasarkan riset pasar Coursera
-        if 'free' in cert_type:
-            return 0.0
-        elif 'professional' in cert_type:
-            return rng.choice([79.99, 89.99, 99.99])  # Variasi harga
-        elif 'specialization' in cert_type:
-            return rng.choice([59.99, 64.99, 69.99, 74.99])  # Variasi harga
-        elif 'certificate' in cert_type:
-            return rng.choice([39.99, 44.99, 49.99, 54.99])  # Variasi harga
-        elif 'degree' in cert_type:
-            return rng.choice([399.99, 449.99, 499.99])  # Variasi harga
-        elif 'master' in cert_type:
-            return rng.choice([499.99, 599.99, 699.99])  # Variasi harga
+        # Find the closest level match
+        if "beginner" in level:
+            level_key = "beginner"
+        elif "intermediate" in level:
+            level_key = "intermediate"
+        elif "advanced" in level:
+            level_key = "advanced"
+        elif "all" in level:
+            level_key = "all levels"
         else:
-            # Cek kata kunci lain
-            if 'guided project' in cert_type:
-                return rng.choice([9.99, 14.99, 19.99])  # Variasi harga
-            elif 'course' in cert_type:
-                return rng.choice([29.99, 34.99, 39.99, 44.99, 49.99])  # Variasi harga lebih banyak
-            else:
-                # Tentukan harga base berdasarkan karakteristik cert_type
-                # Lebih banyak kata = kursus lebih komprehensif = harga lebih tinggi
-                base_price = 20 + len(cert_type) % 10 * 2  # 20-38 base price
-                # Tambahkan variasi acak
-                variation = rng.uniform(-5, 5)
-                # Format ke format harga $X.99
-                return round(base_price + variation - 0.01) + 0.99  # Variasi harga
+            level_key = "intermediate"  # Default to intermediate
+        
+        # Get base price from matrix
+        base_price = price_matrix[level_key][duration_category]
+        
+        # Add small variation (-5 to +5)
+        variation = rng.randint(-5, 6)
+        final_price = base_price + variation
+        
+        # Make sure price is not negative
+        return max(0, final_price)
     
     def load_coursera_data(self, file_path: str) -> pd.DataFrame:
         """
@@ -241,9 +279,7 @@ class DataLoader:
             duration_cols = ['course_time', 'duration', 'course_duration', 'length', 'time', 'estimated_time']
             level_cols = ['course_difficulty', 'level', 'difficulty', 'course_level', 'skill_level']
             subject_cols = ['course_skills', 'category', 'subject', 'topic', 'course_category', 'skills']
-            price_cols = ['price', 'cost', 'fee', 'course_price']
             cert_type_cols = ['course_certificate_type', 'certificate_type', 'cert_type']
-            is_free_cols = ['is_free', 'free', 'is_paid']
             
             # Map course title
             for col in title_cols:
@@ -284,150 +320,18 @@ class DataLoader:
             else:
                 coursera_mapped['subject'] = 'Computer Science'  # Most Coursera courses are in CS
             
-            # Map certificate type
-            cert_type = None
-            for col in cert_type_cols:
-                if col in df_coursera.columns:
-                    cert_type = df_coursera[col]
-                    if self.verbose:
-                        logger.info(f"Using '{col}' for certificate type information")
-                    break
+            # Menggunakan level dan durasi untuk menentukan harga
+            coursera_mapped['price'] = coursera_mapped.apply(
+                lambda row: self._calculate_coursera_price_by_level_duration(
+                    row['level'], 
+                    row['content_duration']
+                ),
+                axis=1
+            )
             
-            # Strategi multi-level untuk harga:
-            logger.info("Starting Coursera pricing determination process")
-            
-            # 1. Periksa kolom harga eksplisit
-            price_found = False
-            for col in price_cols:
-                if col in df_coursera.columns:
-                    # Check if price column has actual data (not all NaN or zeros)
-                    if not df_coursera[col].isnull().all() and (df_coursera[col] > 0).any():
-                        # Clean price strings if needed (remove currency symbols, commas)
-                        if df_coursera[col].dtype == 'object':
-                            coursera_mapped['price'] = df_coursera[col].str.replace('$', '', regex=False) \
-                                                                    .str.replace(',', '', regex=False) \
-                                                                    .astype(float)
-                        else:
-                            coursera_mapped['price'] = pd.to_numeric(df_coursera[col], errors='coerce').fillna(0)
-                        
-                        # Set is_paid based on price
-                        coursera_mapped['is_paid'] = coursera_mapped['price'] > 0
-                        price_found = True
-                        logger.info(f"Using explicit price column '{col}' from dataset")
-                        break
-            
-            # 2. Jika tidak ada harga eksplisit, gunakan tipe sertifikat
-            if not price_found and cert_type is not None:
-                # Set price based on certificate type
-                coursera_mapped['price'] = cert_type.apply(self._get_price_from_cert_type)
-                coursera_mapped['is_paid'] = coursera_mapped['price'] > 0
-                price_found = True
-                logger.info(f"Using certificate type for pricing. Price range: {coursera_mapped['price'].min():.2f}-{coursera_mapped['price'].max():.2f}")
-            
-            # 3. Jika masih tidak ada, periksa indikator is_free
-            if not price_found:
-                for col in is_free_cols:
-                    if col in df_coursera.columns:
-                        # If is_free is True, price is 0, otherwise use a default
-                        if col == 'is_paid':
-                            # is_paid is inverted logic of is_free
-                            coursera_mapped['price'] = np.where(df_coursera[col].astype(bool), 49.99, 0.0)
-                        else:
-                            # Normal is_free logic
-                            coursera_mapped['price'] = np.where(df_coursera[col].astype(bool), 0.0, 49.99)
-                        
-                        coursera_mapped['is_paid'] = coursera_mapped['price'] > 0
-                        price_found = True
-                        logger.info(f"Using '{col}' indicator for pricing")
-                        break
-            
-            # 4. Jika semua di atas gagal, tentukan harga berdasarkan karakteristik lainnya
-            if not price_found:
-                # Set realistic price based on course attributes
-                # Harga default berbasis level kesulitan dan subject
-                if 'level' in coursera_mapped.columns:
-                    # Seed untuk konsistensi antar run
-                    seed_value = hash(str(coursera_mapped['course_title'].iloc[0])) % 10000
-                    np.random.seed(seed_value)
-                    logger.info(f"Using level and subject-based pricing (seed: {seed_value})")
-                    
-                    # Beginner courses tend to be cheaper
-                    level_price_map = {
-                        'Beginner': [29.99, 34.99, 39.99],
-                        'Intermediate': [39.99, 44.99, 49.99],
-                        'Advanced': [49.99, 59.99, 69.99],
-                        'Expert': [59.99, 69.99, 79.99],
-                        'All Levels': [34.99, 44.99, 54.99]
-                    }
-                    
-                    # Subject-based price variations
-                    subject_premium = {
-                        'data science': 10.0,
-                        'machine learning': 15.0,
-                        'artificial intelligence': 20.0,
-                        'programming': 5.0,
-                        'computer science': 5.0,
-                        'business': 0.0,
-                        'finance': 8.0,
-                        'marketing': 0.0,
-                        'design': 5.0
-                    }
-                    
-                    def get_price_from_level_and_subject(row):
-                        level = row.get('level')
-                        subject = str(row.get('subject', '')).lower()
-                        
-                        # Default price range
-                        price_range = [39.99, 49.99, 59.99]
-                        
-                        # Adjust by level
-                        if not pd.isna(level):
-                            for level_key, prices in level_price_map.items():
-                                if level_key.lower() in str(level).lower():
-                                    price_range = prices
-                                    break
-                        
-                        # Get base price from range
-                        base_price = np.random.choice(price_range)
-                        
-                        # Add premium for high-demand subjects
-                        premium = 0.0
-                        for key, value in subject_premium.items():
-                            if key in subject:
-                                premium = max(premium, value)  # Take highest premium if multiple matches
-                        
-                        # Random variation (±$5)
-                        variation = (np.random.random() - 0.5) * 10
-                        
-                        # Calculate final price (ensure it's at least $19.99)
-                        final_price = max(19.99, base_price + premium + variation)
-                        
-                        # Round to nearest $0.99 price point
-                        return round(final_price - 0.01, 0) + 0.99
-                    
-                    # Apply pricing function row by row
-                    coursera_mapped['price'] = coursera_mapped.apply(get_price_from_level_and_subject, axis=1)
-                    
-                    # Log price distribution
-                    price_min = coursera_mapped['price'].min()
-                    price_max = coursera_mapped['price'].max()
-                    price_mean = coursera_mapped['price'].mean()
-                    price_unique = coursera_mapped['price'].nunique()
-                    logger.info(f"Generated varied prices: min=${price_min:.2f}, max=${price_max:.2f}, avg=${price_mean:.2f}, {price_unique} unique prices")
-                    
-                else:
-                    # Default price if we can't determine anything else
-                    # Create varied prices instead of fixed 49.99
-                    np.random.seed(42)  # For reproducibility
-                    coursera_mapped['price'] = np.random.choice(
-                        [29.99, 39.99, 44.99, 49.99, 54.99, 59.99],
-                        size=len(coursera_mapped)
-                    )
-                    logger.info("Using random price distribution from preset values")
-                
-                coursera_mapped['is_paid'] = True
-            
-            # Add platform identifier
+            # Set is_paid based on price
+            coursera_mapped['is_paid'] = coursera_mapped['price'] > 0
+
             coursera_mapped['platform'] = 'Coursera'
             
             # Extract additional metadata if available
@@ -451,7 +355,7 @@ class DataLoader:
             # Verify final price distribution
             if self.verbose:
                 price_counts = coursera_mapped['price'].value_counts().head(10)
-                logger.info(f"Final Coursera price distribution (top 10): {dict(zip(price_counts.index.round(2), price_counts.values))}")
+                logger.info(f"Final Coursera price distribution (top 10): {dict(zip(price_counts.index.round(0), price_counts.values))}")
             
             # Store the dataset
             self.datasets['coursera'] = coursera_mapped
@@ -506,6 +410,10 @@ class DataLoader:
         # Ensure numeric fields are properly formatted
         df['content_duration'] = pd.to_numeric(df['content_duration'], errors='coerce').fillna(5.0)
         df['price'] = pd.to_numeric(df['price'], errors='coerce').fillna(0.0)
+        
+        # Pastikan harga selalu bulat
+        df['price'] = df['price'].round(0).astype(int)
+        
         df['is_paid'] = df['is_paid'].fillna(True)
         
         # Add duration category

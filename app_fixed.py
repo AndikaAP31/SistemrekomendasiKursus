@@ -3,14 +3,14 @@ import pandas as pd
 import numpy as np
 import os
 import logging
-import time
-import sys
 import pickle
 import matplotlib.pyplot as plt
 import seaborn as sns
+from feature_engineering import FeatureEngineering
+from gensim.models import Word2Vec
+from models import TFIDFRecommender, Word2VecRecommender, ContentBasedRecommender
 
-# Import the original app
-# from app import show_statistics_page, show_evaluation_page, show_about_page
+
 from word2vec_fix import fix_recommenders, get_recommendations, create_query_vectors
 from utils import clean_text, normalize_weights
 
@@ -50,29 +50,19 @@ def load_or_train_models_fixed(udemy_path, dicoding_path, coursera_path, force_r
     
     if os.path.exists(model_file) and not force_retrain:
         try:
-            # Try to fix the existing recommenders
-            st.info("Fixing Word2Vec model in existing recommenders...")
             recommenders = fix_recommenders(model_file)
             if recommenders is not None:
-                st.success("Fixed Word2Vec model successfully!")
+                st.success("Sistem siap Digunakan")
                 return recommenders, recommenders['data']
-            else:
-                st.warning("Failed to fix existing recommenders. Training new models...")
+            # else:
+            #     st.warning("Failed to fix existing recommenders. Training new models...")
         except Exception as e:
             st.warning(f"Error fixing recommenders: {e}")
             st.info("Training new models...")
     
-    # If we get here, we need to train new models
     # Implementasi load_or_train_models langsung di sini
     recommenders, df = load_or_train_models(udemy_path, dicoding_path, coursera_path, force_retrain=True)
-    
-    # Fix the Word2Vec model
-    if recommenders is not None:
-        st.info("Fixing Word2Vec model in newly trained recommenders...")
-        recommenders = fix_recommenders(model_file)
-        if recommenders is not None:
-            st.success("Fixed Word2Vec model successfully!")
-    
+      
     return recommenders, df
 
 # Function to load or train models
@@ -84,7 +74,7 @@ def load_or_train_models(udemy_path, dicoding_path, coursera_path, force_retrain
         try:
             with open(model_file, 'rb') as f:
                 recommenders = pickle.load(f)
-            st.success("Loaded pre-trained models successfully!")
+            st.success("Sistem siap Digunakan")
             return recommenders, recommenders['data']
         except Exception as e:
             st.warning(f"Error loading models: {e}")
@@ -99,14 +89,10 @@ def load_or_train_models(udemy_path, dicoding_path, coursera_path, force_retrain
         st.error("Failed to load course data!")
         return None, None
     
-    # Feature engineering
-    from feature_engineering import FeatureEngineering
     feature_eng = FeatureEngineering(verbose=True)
     df_processed = feature_eng.process_all_features(df)
     
-    # Ensure Word2Vec model is properly trained
-    st.info("Training Word2Vec model...")
-    # Create combined text for Word2Vec training
+    
     if 'combined_text' not in df_processed.columns:
         df_processed['combined_text'] = (
             df_processed['course_title'] + ' ' +
@@ -118,14 +104,12 @@ def load_or_train_models(udemy_path, dicoding_path, coursera_path, force_retrain
     
     # Train Word2Vec model explicitly
     sentences = [text.split() for text in df_processed['combined_text']]
-    from gensim.models import Word2Vec
+    # from gensim.models import Word2Vec
     word2vec_model = Word2Vec(sentences, vector_size=100, window=5, min_count=1, workers=4)
     
     # Store the model in feature_eng
     feature_eng.word2vec_model = word2vec_model
     
-    # Create TF-IDF recommender
-    from models import TFIDFRecommender, Word2VecRecommender, ContentBasedRecommender
     
     tfidf_recommender = TFIDFRecommender(verbose=True)
     tfidf_recommender.fit(
@@ -134,8 +118,6 @@ def load_or_train_models(udemy_path, dicoding_path, coursera_path, force_retrain
         feature_eng.tfidf_vectorizer.get_feature_names_out()
     )
     
-    # Create Word2Vec vectors for each course
-    st.info("Creating Word2Vec vectors...")
     word2vec_vectors = np.array([
         feature_eng.create_text_vectors(text, 'word2vec') 
         for text in df_processed['combined_text']
@@ -187,10 +169,10 @@ def load_or_train_models(udemy_path, dicoding_path, coursera_path, force_retrain
 
 def show_recommendation_page_fixed():
     """Show recommendation page with fixed Word2Vec"""
-    st.title("Sistem Rekomendasi Kursus (dengan Word2Vec yang Diperbaiki)")
+    st.title("Sistem Rekomendasi Kursus Online")
     
     if 'recommenders' not in st.session_state or 'df' not in st.session_state:
-        st.warning("Silakan muat model terlebih dahulu menggunakan tombol di sidebar.")
+        st.warning("Silakan tekan tombol mulai pada sidebar terlebih dahulu.")
         return
     
     # Inisialisasi state jika belum ada
@@ -211,7 +193,19 @@ def show_recommendation_page_fixed():
         # Get unique values for filters
         platforms = ["Semua"] + sorted(df['platform'].unique().tolist())
         levels = ["Semua"] + sorted(df['level'].unique().tolist())
-        durations = ["Semua"] + sorted(df['duration_category'].unique().tolist())
+        
+        # Create duration descriptions
+        duration_descriptions = {
+            "short": "Short (< 10 jam)",
+            "medium": "Medium (10 - 35 jam)",
+            "long": "Long (> 35 jam)"
+        }
+        
+        # Create duration options with descriptions
+        durations = ["Semua"] + [
+            duration_descriptions.get(dur, dur) 
+            for dur in sorted(df['duration_category'].unique().tolist())
+        ]
         
         # Create columns for filters
         col1, col2, col3 = st.columns(3)
@@ -224,6 +218,14 @@ def show_recommendation_page_fixed():
         
         with col3:
             selected_duration = st.selectbox("Durasi", durations)
+            
+        # Convert selected duration back to category for filtering
+        if selected_duration != "Semua":
+            selected_duration = next(
+                (cat for cat, desc in duration_descriptions.items() 
+                 if desc == selected_duration),
+                selected_duration
+            )
         
         # Additional filters
         col1, col2 = st.columns(2)
@@ -284,10 +286,8 @@ def show_recommendation_page_fixed():
                 
                 # Translate if language is English or All (Semua)
                 if selected_language == "Inggris" or selected_language == "Semua":
-                    # Selalu terjemahkan ke bahasa Inggris jika bahasa yang dipilih adalah Inggris atau Semua
                     translated_goal = get_translation(learning_goal, src_lang='id', dest_lang='en')
                     st.info(f"Tujuan belajar diterjemahkan ke Bahasa Inggris: {translated_goal}")
-                # If Indonesian is selected, keep original text
                 elif selected_language == "Indonesia":
                     # Keep original text, no translation needed
                     translated_goal = learning_goal
@@ -348,7 +348,7 @@ def show_recommendation_page_fixed():
                     if col in ['Skor Kesamaan', 'Skor TF-IDF', 'Skor Word2Vec']:
                         display_df[col] = display_df[col].apply(lambda x: f"{x:.4f}")
                     elif col == 'Harga (USD)':
-                        display_df[col] = display_df[col].apply(lambda x: f"${x:.2f}")
+                        display_df[col] = display_df[col].apply(lambda x: f"${int(x)} (Rp {int(x)*16000:,})" if x > 0 else "Free")
                 
                 # Display recommendations
                 st.dataframe(display_df, use_container_width=True)
@@ -388,7 +388,9 @@ def show_recommendation_page_fixed():
                 if selected_course_data['price'] == 0:
                     st.markdown("### 🎁 **GRATIS**")
                 else:
-                    st.markdown(f"### 💰 **${selected_course_data['price']:.2f}**")
+                    usd_price = int(selected_course_data['price'])
+                    idr_price = usd_price * 16000
+                    st.markdown(f"### 💰 **${usd_price}** (Rp {idr_price:,})")
                 
                 st.markdown("---")
                 
@@ -541,7 +543,7 @@ def show_statistics_page():
     st.title("Statistik Dataset")
     
     if 'df' not in st.session_state:
-        st.warning("Silakan muat model terlebih dahulu menggunakan tombol di sidebar.")
+        st.warning("Silakan tekan tombol mulai pada sidebar terlebih dahulu.")
         return
     
     df = st.session_state.df
@@ -694,24 +696,6 @@ def show_statistics_page():
     - Harga median: **${price_stats['median_price']:.2f}**
     """)
     
-    # Top subjects
-    st.subheader("Topik Kursus Terpopuler")
-    top_subjects = df['subject'].value_counts().head(10).reset_index()
-    top_subjects.columns = ['Topik', 'Jumlah']
-    
-    fig, ax = plt.subplots(figsize=(10, 6))
-    sns.barplot(x='Jumlah', y='Topik', data=top_subjects, ax=ax)
-    ax.set_title('10 Topik Kursus Terpopuler')
-    st.pyplot(fig)
-    
-    # Add descriptive text for top subjects
-    st.write("10 topik kursus terpopuler:")
-    subject_text = []
-    for _, row in top_subjects.iterrows():
-        percentage = (row['Jumlah'] / len(df)) * 100
-        subject_text.append(f"**{row['Topik']}**: {row['Jumlah']:,} kursus ({percentage:.1f}%)")
-    
-    st.write("\n".join(subject_text))
     
     # Platform comparison
     st.subheader("Perbandingan Antar Platform")
@@ -752,104 +736,13 @@ def show_statistics_page():
         for _, row in avg_duration_by_platform.iterrows():
             st.write(f"**{row['Platform']}**: {row['Durasi Rata-rata']:.1f} jam")
 
-def show_evaluation_page():
-    st.title("Evaluasi Model")
-    
-    if 'recommenders' not in st.session_state or 'df' not in st.session_state:
-        st.warning("Silakan muat model terlebih dahulu menggunakan tombol di sidebar.")
-        return
-    
-    recommenders = st.session_state.recommenders
-    df = st.session_state.df
-    
-    # Display model information
-    st.header("Informasi Model")
-    
-    # Show available recommenders
-    st.subheader("Recommenders Tersedia")
-    
-    available_models = ["TF-IDF Recommender", "Word2Vec Recommender", "Content-Based Recommender"]
-    for name in available_models:
-        st.write(f"- **{name}**")
-    
-    # Model performance
-    st.header("Performance Model")
-    
-    st.info("Untuk mengevaluasi model, kita membutuhkan data uji dengan preferensi pengguna yang diketahui. " +
-            "Ini biasanya berasal dari penilaian, data klik, atau penyelesaian kursus.")
-    
-    # Sample metrics for demonstration
-    metrics = {
-        "TF-IDF Recommender": {
-            "precision@5": 0.42,
-            "recall@5": 0.35,
-            "ndcg@5": 0.38,
-            "coverage": 0.65
-        },
-        "Word2Vec Recommender": {
-            "precision@5": 0.39,
-            "recall@5": 0.32,
-            "ndcg@5": 0.36,
-            "coverage": 0.72
-        },
-        "Content-Based Recommender": {
-            "precision@5": 0.45,
-            "recall@5": 0.38,
-            "ndcg@5": 0.41,
-            "coverage": 0.68
-        }
-    }
-    
-    # Create a DataFrame for comparison
-    metrics_df = pd.DataFrame(metrics).T
-    st.dataframe(metrics_df)
-    
-    # Plot comparison
-    st.subheader("Perbandingan Model")
-    
-    # Select metric to visualize
-    selected_metric = st.selectbox(
-        "Select Metric",
-        ["precision@5", "recall@5", "ndcg@5", "coverage"]
-    )
-    
-    # Create bar chart
-    fig, ax = plt.subplots(figsize=(10, 6))
-    ax.bar(metrics_df.index, metrics_df[selected_metric])
-    ax.set_ylabel(selected_metric.upper())
-    ax.set_title(f"Perbandingan Model: {selected_metric.upper()}")
-    plt.xticks(rotation=45)
-    plt.tight_layout()
-    st.pyplot(fig)
-    
-    # Feature importance
-    st.header("Importance Fitur")
-    
-    # Sample feature importance for demonstration
-    feature_importance = {
-        "course_title": 0.35,
-        "level": 0.20,
-        "subject": 0.25,
-        "platform": 0.10,
-        "price": 0.05,
-        "duration_category": 0.05
-    }
-    
-    # Create bar chart
-    fig, ax = plt.subplots(figsize=(10, 6))
-    ax.bar(list(feature_importance.keys()), list(feature_importance.values()))
-    ax.set_ylabel("Importance")
-    ax.set_title("Importance Fitur")
-    plt.xticks(rotation=45)
-    plt.tight_layout()
-    st.pyplot(fig)
 
 def show_dashboard_page():
     """Show dashboard page with course platform information"""
     st.title("Dashboard Kursus Online")
     
     if 'df' not in st.session_state:
-        st.warning("Silakan muat model terlebih dahulu menggunakan tombol di sidebar.")
+        st.warning("Silakan tekan tombol mulai pada sidebar terlebih dahulu.")
         return
 
     # Initialize session state for pagination
@@ -875,9 +768,9 @@ def show_dashboard_page():
         
         with col2:
             descriptions = {
-                'Dicoding': "Platform pembelajaran coding terkemuka di Indonesia dengan kurikulum yang dirancang bersama pelaku industri.",
-                'Udemy': "Marketplace pembelajaran online global yang menghubungkan siswa dengan instruktur dari seluruh dunia.",
-                'Coursera': "Platform kursus online yang menyediakan sertifikasi dan gelar dari universitas dan perusahaan terkemuka dunia."
+                'Dicoding': "Dicoding adalah platform belajar digital asal Indonesia yang fokus menyediakan pelatihan di bidang teknologi, khususnya pemrograman, pengembangan aplikasi, kecerdasan buatan, dan cloud computing. Platform ini didesain untuk mendukung talenta digital Indonesia agar siap menghadapi kebutuhan industri. Dicoding bekerja sama dengan perusahaan global seperti Google, AWS, dan IBM untuk menyusun kelas-kelas yang relevan dan berkualitas. Materi disampaikan dalam bahasa Indonesia, sehingga mudah diakses oleh pemula maupun profesional. Selain itu, Dicoding juga menyediakan sistem sertifikasi yang diakui industri dan telah mendukung banyak program pemerintah seperti Kampus Merdeka dan Digital Talent Scholarship.",
+                'Udemy': "Udemy adalah marketplace kursus online global yang memungkinkan siapa saja, baik individu maupun lembaga untuk membuat dan menjual kursus mereka secara bebas. Platform ini menawarkan ribuan kelas dalam berbagai topik, seperti pengembangan web, desain grafis, bisnis, fotografi, hingga keterampilan pengembangan diri. Keunggulan Udemy terletak pada fleksibilitas harga dan akses seumur hidup terhadap materi kursus yang telah dibeli. Banyak kursus di Udemy dijual dengan harga sangat terjangkau karena sering ada diskon besar. Walaupun kualitas materi bisa bervariasi tergantung pada instruktur, banyak kursus populer di Udemy telah terbukti efektif dan mendapat rating tinggi dari jutaan pengguna di seluruh dunia.",
+                'Coursera': "Coursera adalah platform kursus online berskala internasional yang menyediakan akses pembelajaran dari universitas dan institusi ternama dunia, seperti Stanford University, University of London, Google, IBM, dan Meta. Kursus di Coursera mencakup berbagai bidang, mulai dari ilmu komputer, bisnis, kesehatan, hingga seni dan ilmu sosial. Platform ini menyediakan pilihan pembelajaran gratis dan berbayar, termasuk program sertifikat profesional hingga gelar sarjana atau magister secara online. Pembelajaran dilakukan dalam bahasa Inggris, namun banyak kursus menyediakan subtitle dalam berbagai bahasa, termasuk bahasa Indonesia. Coursera sangat cocok bagi pelajar dan profesional yang ingin memperdalam keahlian dengan kurikulum akademik dari institusi bereputasi tinggi.."
             }
             st.write(descriptions[platform_name])
         
@@ -916,8 +809,12 @@ def show_dashboard_page():
                 with cols[3]:
                     st.write(course['subject'])
                 with cols[4]:
-                    price = f"${course['price']:.2f}" if pd.notna(course['price']) and course['price'] > 0 else "Free"
-                    st.write(price)
+                    if pd.notna(course['price']) and course['price'] > 0:
+                        usd_price = int(course['price'])
+                        idr_price = usd_price * 16000
+                        st.write(f"${usd_price}\n(Rp {idr_price:,})")
+                    else:
+                        st.write("Free")
                 with cols[5]:
                     if pd.notna(course['course_url']):
                         st.link_button("Daftar", course['course_url'], type="primary", use_container_width=True)
@@ -961,11 +858,11 @@ def main():
     )
 
     # Sidebar
-    st.sidebar.title("Navigasi")
+    st.sidebar.title("Sistem Rekomendasi Kursus Online")
     
     # Add load model button to sidebar
-    if st.sidebar.button("Muat Model"):
-        with st.spinner("Memuat model..."):
+    if st.sidebar.button("Mulai"):
+        with st.spinner("Loading"):
             recommenders, df = load_or_train_models_fixed(
                 "udemy_courses.csv",
                 "dicoding_courses.csv",
@@ -973,12 +870,12 @@ def main():
             )
             st.session_state.recommenders = recommenders
             st.session_state.df = df
-            st.sidebar.success("Model berhasil dimuat!")
+            # st.sidebar.success("Model berhasil dimuat!")
     
     # Navigation
     page = st.sidebar.radio(
         "Pilih Halaman:",
-        ["Dashboard", "Rekomendasi", "Statistik", "Evaluasi"]
+        ["Dashboard", "Rekomendasi", "Statistik"]
     )
     
     # Display selected page
@@ -988,8 +885,8 @@ def main():
         show_recommendation_page_fixed()
     elif page == "Statistik":
         show_statistics_page()
-    elif page == "Evaluasi":
-        show_evaluation_page()
+    # elif page == "Evaluasi":
+    #     show_evaluation_page()
 
 if __name__ == "__main__":
     main() 

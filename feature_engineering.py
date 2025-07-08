@@ -6,9 +6,6 @@ from sklearn.preprocessing import LabelEncoder, StandardScaler, MinMaxScaler
 from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
 from sklearn.decomposition import PCA, TruncatedSVD
 from gensim.models import Word2Vec, FastText
-import nltk
-from nltk.corpus import stopwords
-from nltk.tokenize import word_tokenize
 import warnings
 import time
 import re
@@ -19,13 +16,7 @@ logger = logging.getLogger(__name__)
 # Suppress warnings
 warnings.filterwarnings('ignore')
 
-# Download NLTK resources if not already downloaded
-try:
-    nltk.data.find('tokenizers/punkt')
-    nltk.data.find('corpora/stopwords')
-except LookupError:
-    nltk.download('punkt', quiet=True)
-    nltk.download('stopwords', quiet=True)
+
 
 class FeatureEngineering:
     """

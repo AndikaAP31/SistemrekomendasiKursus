@@ -19,24 +19,13 @@ warnings.filterwarnings('ignore')
 
 
 class FeatureEngineering:
-    """
-    Class for creating and managing features for the recommendation system
-    """
     
     def __init__(self, 
                 verbose: bool = True, 
                 random_state: int = 42,
                 tfidf_params: Optional[Dict] = None,
                 w2v_params: Optional[Dict] = None):
-        """
-        Initialize FeatureEngineering class
         
-        Args:
-            verbose: Whether to print additional information
-            random_state: Random seed for reproducibility
-            tfidf_params: Parameters for TF-IDF vectorizer
-            w2v_params: Parameters for Word2Vec model
-        """
         self.verbose = verbose
         self.random_state = random_state
         
@@ -108,27 +97,13 @@ class FeatureEngineering:
             self.stop_words = set(stopwords.words('english'))
     
     def _log_time(self, start_time: float, operation: str):
-        """
-        Log time taken for an operation
-        
-        Args:
-            start_time: Start time
-            operation: Name of the operation
-        """
+
         if self.verbose:
             elapsed = time.time() - start_time
             logger.info(f"{operation} completed in {elapsed:.2f} seconds")
     
     def encode_categorical_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Encode categorical features using LabelEncoder
-        
-        Args:
-            df: Input DataFrame
-            
-        Returns:
-            DataFrame with encoded categorical features
-        """
+      
         start_time = time.time()
         
         # Make a copy to avoid modifying the input
@@ -164,16 +139,7 @@ class FeatureEngineering:
         return df_encoded
     
     def scale_numerical_features(self, df: pd.DataFrame, method: str = 'standard') -> pd.DataFrame:
-        """
-        Scale numerical features using specified scaler
-        
-        Args:
-            df: Input DataFrame
-            method: Scaling method ('standard' or 'minmax')
-            
-        Returns:
-            DataFrame with scaled numerical features
-        """
+
         start_time = time.time()
         
         # Make a copy to avoid modifying the input
@@ -232,16 +198,7 @@ class FeatureEngineering:
         return df_scaled
     
     def create_tfidf_features(self, df: pd.DataFrame, text_col: str = 'combined_text') -> Tuple[pd.DataFrame, np.ndarray]:
-        """
-        Create TF-IDF features from text column
-        
-        Args:
-            df: Input DataFrame
-            text_col: Column containing text to vectorize
-            
-        Returns:
-            Tuple of (DataFrame, TF-IDF matrix)
-        """
+
         start_time = time.time()
         
         if text_col not in df.columns:
@@ -281,16 +238,7 @@ class FeatureEngineering:
         return df_with_tfidf, self.tfidf_matrix
     
     def train_word2vec(self, df: pd.DataFrame, text_col: str = 'combined_text') -> Tuple[pd.DataFrame, Word2Vec]:
-        """
-        Train Word2Vec model on text data
-        
-        Args:
-            df: Input DataFrame
-            text_col: Column containing text to train on
-            
-        Returns:
-            Tuple of (DataFrame, Word2Vec model)
-        """
+
         start_time = time.time()
         
         if text_col not in df.columns:
@@ -321,16 +269,7 @@ class FeatureEngineering:
         return df_with_w2v, self.word2vec_model
     
     def train_fasttext(self, df: pd.DataFrame, text_col: str = 'combined_text') -> Tuple[pd.DataFrame, FastText]:
-        """
-        Train FastText model on text data
-        
-        Args:
-            df: Input DataFrame
-            text_col: Column containing text to train on
-            
-        Returns:
-            Tuple of (DataFrame, FastText model)
-        """
+       
         start_time = time.time()
         
         if text_col not in df.columns:
@@ -363,17 +302,6 @@ class FeatureEngineering:
         return df_with_fasttext, self.fasttext_model
     
     def create_lsa_features(self, df: pd.DataFrame, text_col: str = 'combined_text', n_components: int = 50) -> Tuple[pd.DataFrame, np.ndarray]:
-        """
-        Create Latent Semantic Analysis (LSA) features from text
-        
-        Args:
-            df: Input DataFrame
-            text_col: Column containing text to analyze
-            n_components: Number of LSA components
-            
-        Returns:
-            Tuple of (DataFrame, LSA features matrix)
-        """
         start_time = time.time()
         
         if text_col not in df.columns:
@@ -407,15 +335,7 @@ class FeatureEngineering:
         return df_with_lsa, lsa_features
     
     def create_combined_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Create additional combined features from existing ones
-        
-        Args:
-            df: Input DataFrame
-            
-        Returns:
-            DataFrame with additional combined features
-        """
+
         start_time = time.time()
         
         df_combined = df.copy()
@@ -457,16 +377,7 @@ class FeatureEngineering:
         return df_combined
     
     def create_text_vectors(self, text: str, model_type: str = 'tfidf') -> np.ndarray:
-        """
-        Create vector representation of text using specified model
-        
-        Args:
-            text: Input text
-            model_type: Type of model to use ('tfidf', 'word2vec', 'fasttext', 'lsa')
-            
-        Returns:
-            Text vector representation
-        """
+
         # Preprocess text
         text = self.preprocess_text(text)
         logger.info(f"Preprocessed text for {model_type}: {text}")
@@ -553,15 +464,7 @@ class FeatureEngineering:
             return np.zeros(100)  # Default size
     
     def create_weighted_word_embedding(self, text: str) -> np.ndarray:
-        """
-        Create weighted word embedding using TF-IDF weights and Word2Vec vectors
-        
-        Args:
-            text: Input text
-            
-        Returns:
-            Weighted word embedding vector
-        """
+    
         if self.tfidf_vectorizer is None or self.word2vec_model is None:
             logger.warning("TF-IDF vectorizer or Word2Vec model not initialized")
             return np.array([])
@@ -589,16 +492,7 @@ class FeatureEngineering:
             return np.zeros(self.word2vec_model.vector_size)
     
     def process_all_features(self, df: pd.DataFrame, text_col: str = 'combined_text') -> pd.DataFrame:
-        """
-        Process all features on the input DataFrame
         
-        Args:
-            df: Input DataFrame
-            text_col: Column containing text to analyze
-            
-        Returns:
-            DataFrame with all processed features
-        """
         try:
             # Encode categorical features
             df_processed = self.encode_categorical_features(df)
@@ -634,12 +528,7 @@ class FeatureEngineering:
             return df
     
     def get_feature_info(self) -> Dict[str, List[str]]:
-        """
-        Get information about available features
-        
-        Returns:
-            Dictionary with feature information
-        """
+      
         return {
             'categorical_features': self.categorical_features,
             'numerical_features': self.numerical_features,
@@ -648,15 +537,7 @@ class FeatureEngineering:
         } 
     
     def preprocess_text(self, text: str) -> str:
-        """
-        Preprocess text for vectorization
-        
-        Args:
-            text: Input text
-            
-        Returns:
-            Preprocessed text
-        """
+ 
         if not isinstance(text, str):
             return ""
             

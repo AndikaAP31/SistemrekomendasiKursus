@@ -5,7 +5,7 @@ import logging
 import os
 from pathlib import Path
 
-from utils import clean_text, extract_duration_hours, normalize_level, categorize_duration
+from utils import clean_text, extract_duration_hours, normalize_level, categorize_duration, convert_k_to_number
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -16,26 +16,13 @@ class DataLoader:
     """
     
     def __init__(self, verbose: bool = True):
-        """
-        Initialize DataLoader
-        
-        Args:
-            verbose: Whether to print additional information
-        """
+     
         self.verbose = verbose
         self.datasets = {}
         self.combined_df = None
     
     def load_udemy_data(self, file_path: str) -> pd.DataFrame:
-        """
-        Load and preprocess Udemy dataset
-        
-        Args:
-            file_path: Path to Udemy CSV file
-            
-        Returns:
-            Preprocessed Udemy DataFrame
-        """
+     
         try:
             df_udemy = pd.read_csv(file_path)
             if self.verbose:
@@ -67,13 +54,13 @@ class DataLoader:
             
             # Additional potentially useful columns if available
             if 'num_subscribers' in df_udemy.columns:
-                udemy_mapped['num_subscribers'] = pd.to_numeric(df_udemy.get('num_subscribers', 0), errors='coerce').fillna(0)
+                udemy_mapped['num_subscribers'] = df_udemy['num_subscribers'].apply(convert_k_to_number)
             
             if 'num_reviews' in df_udemy.columns:
-                udemy_mapped['num_reviews'] = pd.to_numeric(df_udemy.get('num_reviews', 0), errors='coerce').fillna(0)
+                udemy_mapped['num_reviews'] = df_udemy['num_reviews'].apply(convert_k_to_number)
             
             if 'num_lectures' in df_udemy.columns:
-                udemy_mapped['num_lectures'] = pd.to_numeric(df_udemy.get('num_lectures', 0), errors='coerce').fillna(0)
+                udemy_mapped['num_lectures'] = df_udemy['num_lectures'].apply(convert_k_to_number)
             
             # Extract course URLs if available
             if 'url' in df_udemy.columns:
@@ -88,15 +75,7 @@ class DataLoader:
             return pd.DataFrame()
     
     def load_dicoding_data(self, file_path: str) -> pd.DataFrame:
-        """
-        Load and preprocess Dicoding dataset
-        
-        Args:
-            file_path: Path to Dicoding CSV file
-            
-        Returns:
-            Preprocessed Dicoding DataFrame
-        """
+   
         try:
             df_dicoding = pd.read_csv(file_path, sep='|')
             if self.verbose:
@@ -158,10 +137,10 @@ class DataLoader:
                 dicoding_mapped['rating'] = pd.to_numeric(df_dicoding['rating'], errors='coerce')
             
             if 'num_enrolled_students' in df_dicoding.columns:
-                dicoding_mapped['num_subscribers'] = pd.to_numeric(df_dicoding['num_enrolled_students'], errors='coerce').fillna(0)
+                dicoding_mapped['num_subscribers'] = df_dicoding['num_enrolled_students'].apply(convert_k_to_number)
             
             if 'num_modules' in df_dicoding.columns:
-                dicoding_mapped['num_lectures'] = pd.to_numeric(df_dicoding['num_modules'], errors='coerce').fillna(0)
+                dicoding_mapped['num_lectures'] = df_dicoding['num_modules'].apply(convert_k_to_number)
             
             # Store the dataset
             self.datasets['dicoding'] = dicoding_mapped
@@ -172,16 +151,7 @@ class DataLoader:
             return pd.DataFrame()
     
     def _calculate_coursera_price_by_level_duration(self, level, duration):
-        """
-        Determine price based on course level and duration with whole number prices
-        
-        Args:
-            level: Course difficulty level
-            duration: Course duration in hours
-            
-        Returns:
-            Whole number price for the course
-        """
+   
         # Normalize level for consistent mapping
         if pd.isna(level):
             level = "Intermediate"
@@ -201,7 +171,7 @@ class DataLoader:
         if duration < 160:
             duration_category = "Short"
         elif duration < 320:
-            duration_category = "Medium"
+            duration_category = "Medium" 
         else:
             duration_category = "Long"
         
@@ -256,6 +226,7 @@ class DataLoader:
         # Make sure price is not negative
         return max(0, final_price)
     
+   
     def load_coursera_data(self, file_path: str) -> pd.DataFrame:
         """
         Load and preprocess Coursera dataset
@@ -279,7 +250,7 @@ class DataLoader:
             duration_cols = ['course_time', 'duration', 'course_duration', 'length', 'time', 'estimated_time']
             level_cols = ['course_difficulty', 'level', 'difficulty', 'course_level', 'skill_level']
             subject_cols = ['course_skills', 'category', 'subject', 'topic', 'course_category', 'skills']
-            cert_type_cols = ['course_certificate_type', 'certificate_type', 'cert_type']
+            # cert_type_cols = ['course_certificate_type', 'certificate_type', 'cert_type']
             
             # Map course title
             for col in title_cols:
@@ -328,8 +299,7 @@ class DataLoader:
                 ),
                 axis=1
             )
-            
-            # Set is_paid based on price
+                               
             coursera_mapped['is_paid'] = coursera_mapped['price'] > 0
 
             coursera_mapped['platform'] = 'Coursera'
@@ -346,11 +316,12 @@ class DataLoader:
                 coursera_mapped['rating'] = pd.to_numeric(df_coursera['rating'], errors='coerce')
             
             if 'course_students_enrolled' in df_coursera.columns:
-                coursera_mapped['num_subscribers'] = pd.to_numeric(df_coursera['course_students_enrolled'], errors='coerce').fillna(0)
-            elif 'students_enrolled' in df_coursera.columns:
-                coursera_mapped['num_subscribers'] = pd.to_numeric(df_coursera['students_enrolled'], errors='coerce').fillna(0)
-            elif 'num_enrolled' in df_coursera.columns:
-                coursera_mapped['num_subscribers'] = pd.to_numeric(df_coursera['num_enrolled'], errors='coerce').fillna(0)
+                # Menghapus koma dari nilai dan mengkonversi ke numerik
+                coursera_mapped['num_subscribers'] = df_coursera['course_students_enrolled'].astype(str).str.replace(',', '').str.replace('"', '').astype(float).fillna(0).astype(int)
+              
+            if 'course_reviews_num' in df_coursera.columns:
+                # Menggunakan convert_k_to_number untuk nilai dengan format 'k'
+                coursera_mapped['num_reviews'] = df_coursera['course_reviews_num'].apply(convert_k_to_number)
             
             # Verify final price distribution
             if self.verbose:
@@ -366,12 +337,7 @@ class DataLoader:
             return pd.DataFrame()
     
     def combine_data(self) -> pd.DataFrame:
-        """
-        Combine all loaded datasets into a single DataFrame
-        
-        Returns:
-            Combined DataFrame with all courses
-        """
+       
         if not self.datasets:
             logger.warning("No datasets have been loaded yet")
             return pd.DataFrame()
@@ -387,12 +353,7 @@ class DataLoader:
         return self.combined_df
     
     def preprocess_combined_data(self) -> pd.DataFrame:
-        """
-        Apply preprocessing to the combined dataset
-        
-        Returns:
-            Preprocessed combined DataFrame
-        """
+       
         if self.combined_df is None or self.combined_df.empty:
             logger.warning("No combined data available for preprocessing")
             return pd.DataFrame()
@@ -446,17 +407,7 @@ class DataLoader:
                                udemy_path: Optional[str] = None, 
                                dicoding_path: Optional[str] = None,
                                coursera_path: Optional[str] = None) -> pd.DataFrame:
-        """
-        Load all specified datasets and preprocess them
         
-        Args:
-            udemy_path: Path to Udemy CSV file
-            dicoding_path: Path to Dicoding CSV file
-            coursera_path: Path to Coursera CSV file
-            
-        Returns:
-            Preprocessed combined DataFrame
-        """
         datasets_loaded = []
         
         if udemy_path and os.path.exists(udemy_path):
@@ -484,12 +435,6 @@ class DataLoader:
         return self.preprocess_combined_data()
     
     def get_data_stats(self) -> Dict:
-        """
-        Get statistics about the loaded data
-        
-        Returns:
-            Dictionary with dataset statistics
-        """
         if self.combined_df is None or self.combined_df.empty:
             logger.warning("No data available for statistics")
             return {}
@@ -504,9 +449,5 @@ class DataLoader:
             'avg_duration': float(self.combined_df['content_duration'].mean()),
             'duration_distribution': self.combined_df['duration_category'].value_counts().to_dict(),
         }
-        
-        # Add subject distribution (top 10)
-        subject_counts = self.combined_df['subject'].value_counts().head(10).to_dict()
-        stats['subject_distribution'] = subject_counts
-        
+           
         return stats 

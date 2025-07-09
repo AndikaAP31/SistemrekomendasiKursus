@@ -12,12 +12,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def clean_text(text: Union[str, float, None]) -> str:
-    """
-    Clean and normalize text by removing special characters and extra spaces
-    
-    Args:
-        text: Input text to clean
-        
+    """ 
     Returns:
         Cleaned text in lowercase
     """
@@ -31,13 +26,40 @@ def clean_text(text: Union[str, float, None]) -> str:
     text = re.sub(r'\s+', ' ', text)
     return text.lower()
 
-def extract_duration_hours(duration_str: Union[str, float, None]) -> float:
+def convert_k_to_number(value: Union[str, float, None]) -> float:
     """
-    Extract duration in hours from various string formats
+    Convert values like '1.5k', '39.3k', '244', '14k' to numeric values
     
     Args:
-        duration_str: String representation of duration
+        value: String or numeric value, possibly with 'k' suffix
         
+    Returns:
+        Numeric value after conversion
+    """
+    if pd.isna(value):
+        return 0
+    
+    # Convert to string and clean
+    value_str = str(value).strip().lower()
+    
+    if value_str == '' or value_str == 'nan':
+        return 0
+    
+    # Handle 'k' or 'K' suffix
+    if value_str.endswith('k'):
+        try:
+            number = float(value_str[:-1])
+            return int(number * 1000)
+        except ValueError:
+            return 0
+    else:
+        try:
+            return int(float(value_str))
+        except ValueError:
+            return 0
+
+def extract_duration_hours(duration_str: Union[str, float, None]) -> float:
+    """ 
     Returns:
         Duration in hours as a float
     """
@@ -59,11 +81,6 @@ def extract_duration_hours(duration_str: Union[str, float, None]) -> float:
     hours_match = re.search(r'(\d+(?:\.\d+)?)\s*(?:hours?|hrs?|jam)', duration_str)
     if hours_match:
         return float(hours_match.group(1))
-    
-    # Look for minutes pattern and convert to hours
-    minutes_match = re.search(r'(\d+(?:\.\d+)?)\s*(?:minutes?|mins?|menit)', duration_str)
-    if minutes_match:
-        return float(minutes_match.group(1)) / 60
     
     # Look for days pattern and convert to hours (assuming 8 hours per day)
     days_match = re.search(r'(\d+(?:\.\d+)?)\s*(?:days?|hari)', duration_str)
@@ -89,15 +106,7 @@ def extract_duration_hours(duration_str: Union[str, float, None]) -> float:
     return 5.0
 
 def normalize_level(level: Union[str, float, None]) -> str:
-    """
-    Normalize course level names to standardized categories
-    
-    Args:
-        level: Course level string
-        
-    Returns:
-        Normalized level string
-    """
+
     if pd.isna(level):
         return 'All Levels'
     
@@ -116,11 +125,6 @@ def normalize_level(level: Union[str, float, None]) -> str:
 
 def categorize_duration(hours: Union[float, None]) -> str:
     """
-    Categorize course duration into short, medium, or long
-    
-    Args:
-        hours: Duration in hours
-        
     Returns:
         Duration category as string
     """
@@ -136,12 +140,6 @@ def categorize_duration(hours: Union[float, None]) -> str:
 
 def safe_division(numerator: Union[int, float], denominator: Union[int, float]) -> float:
     """
-    Safely divide two numbers, returning 0 if denominator is 0
-    
-    Args:
-        numerator: Number to divide
-        denominator: Number to divide by
-        
     Returns:
         Result of division or 0 if denominator is 0
     """
@@ -149,11 +147,6 @@ def safe_division(numerator: Union[int, float], denominator: Union[int, float]) 
 
 def normalize_weights(weights: List[float]) -> List[float]:
     """
-    Normalize a list of weights to sum to 1.0
-    
-    Args:
-        weights: List of weight values
-        
     Returns:
         Normalized weights that sum to 1.0
     """
@@ -163,22 +156,17 @@ def normalize_weights(weights: List[float]) -> List[float]:
         return [1.0/len(weights)] * len(weights)
     return [w/total for w in weights]
 
-def cosine_similarity_safe(vec1: np.ndarray, vec2: np.ndarray) -> float:
-    """
-    Calculate cosine similarity between two vectors safely
+# def cosine_similarity_safe(vec1: np.ndarray, vec2: np.ndarray) -> float:
+#     """
+
+#     Returns:
+#         Cosine similarity value between -1 and 1
+#     """
+#     if np.all(vec1 == 0) or np.all(vec2 == 0):
+#         return 0.0
     
-    Args:
-        vec1: First vector
-        vec2: Second vector
-        
-    Returns:
-        Cosine similarity value between -1 and 1
-    """
-    if np.all(vec1 == 0) or np.all(vec2 == 0):
-        return 0.0
+#     dot_product = np.dot(vec1, vec2)
+#     norm_vec1 = np.linalg.norm(vec1)
+#     norm_vec2 = np.linalg.norm(vec2)
     
-    dot_product = np.dot(vec1, vec2)
-    norm_vec1 = np.linalg.norm(vec1)
-    norm_vec2 = np.linalg.norm(vec2)
-    
-    return safe_division(dot_product, norm_vec1 * norm_vec2) 
+#     return safe_division(dot_product, norm_vec1 * norm_vec2) 

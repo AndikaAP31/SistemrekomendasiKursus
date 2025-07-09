@@ -17,20 +17,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def train_word2vec_model(df, text_column='combined_text', vector_size=100, window=5, min_count=1, workers=4):
-    """
-    Train a Word2Vec model on the given DataFrame
-    
-    Args:
-        df: DataFrame containing the text data
-        text_column: Column name containing the text to train on
-        vector_size: Size of the word vectors
-        window: Maximum distance between current and predicted word
-        min_count: Minimum word count
-        workers: Number of worker threads
-        
-    Returns:
-        Trained Word2Vec model
-    """
+  
     start_time = time.time()
     
     if text_column not in df.columns:
@@ -55,14 +42,6 @@ def train_word2vec_model(df, text_column='combined_text', vector_size=100, windo
 def create_word2vec_vectors(df, word2vec_model, text_column='combined_text'):
     """
     Create Word2Vec vectors for each document in the DataFrame
-    
-    Args:
-        df: DataFrame containing the text data
-        word2vec_model: Trained Word2Vec model
-        text_column: Column name containing the text to vectorize
-        
-    Returns:
-        NumPy array of Word2Vec vectors
     """
     start_time = time.time()
     
@@ -85,15 +64,7 @@ def create_word2vec_vectors(df, word2vec_model, text_column='combined_text'):
     return vectors
 
 def fix_recommenders(model_path="models/recommenders.pkl"):
-    """
-    Fix the Word2Vec implementation in the recommendation system
-    
-    Args:
-        model_path: Path to the recommenders pickle file
-        
-    Returns:
-        Fixed recommenders dictionary
-    """
+   
     # Load the existing recommenders
     if os.path.exists(model_path):
         try:
@@ -187,16 +158,7 @@ def fix_recommenders(model_path="models/recommenders.pkl"):
     return recommenders
 
 def create_query_vectors(query_text, recommenders):
-    """
-    Create query vectors for the given text
-    
-    Args:
-        query_text: Text to vectorize
-        recommenders: Recommenders dictionary
-        
-    Returns:
-        Dictionary of query vectors
-    """
+
     # Get models
     tfidf_vectorizer = recommenders['tfidf_vectorizer']
     word2vec_model = recommenders['word2vec_model']
@@ -261,18 +223,7 @@ def create_query_vectors(query_text, recommenders):
     }
 
 def get_recommendations(query_text, recommenders, filter_dict=None, top_n=5):
-    """
-    Get recommendations for the given query text
-    
-    Args:
-        query_text: Query text
-        recommenders: Recommenders dictionary
-        filter_dict: Dictionary of filters to apply
-        top_n: Number of recommendations to return
-        
-    Returns:
-        DataFrame with recommendations
-    """
+
     # Create query vectors
     query_vectors = create_query_vectors(query_text, recommenders)
     

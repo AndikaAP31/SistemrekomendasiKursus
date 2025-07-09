@@ -8,7 +8,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from feature_engineering import FeatureEngineering
 from gensim.models import Word2Vec
-from models import TFIDFRecommender, Word2VecRecommender, ContentBasedRecommender
+from models import TFIDFRecommender, ContentBasedRecommender
+from data_loader import DataLoader
 
 
 from word2vec_fix import fix_recommenders, get_recommendations, create_query_vectors
@@ -48,20 +49,20 @@ def load_or_train_models_fixed(udemy_path, dicoding_path, coursera_path, force_r
     """Load pretrained models or train new ones with fixed Word2Vec"""
     model_file = os.path.join(MODEL_DIR, "recommenders.pkl")
     
+    # Ensure model directory exists
+    os.makedirs(MODEL_DIR, exist_ok=True)
+    
     if os.path.exists(model_file) and not force_retrain:
         try:
             recommenders = fix_recommenders(model_file)
             if recommenders is not None:
                 st.success("Sistem siap Digunakan")
                 return recommenders, recommenders['data']
-            # else:
-            #     st.warning("Failed to fix existing recommenders. Training new models...")
         except Exception as e:
-            st.warning(f"Error fixing recommenders: {e}")
-            st.info("Training new models...")
+            st.info("📚Selamat Datang Di Sistem Rekomendasi Kursus Online📚")
     
     # Implementasi load_or_train_models langsung di sini
-    recommenders, df = load_or_train_models(udemy_path, dicoding_path, coursera_path, force_retrain=True)
+    recommenders, df = load_or_train_models(udemy_path, dicoding_path, coursera_path, force_retrain=False)
       
     return recommenders, df
 
@@ -81,7 +82,6 @@ def load_or_train_models(udemy_path, dicoding_path, coursera_path, force_retrain
             st.info("Training new models...")
     
     # Load and preprocess data
-    from data_loader import DataLoader
     data_loader = DataLoader(verbose=True)
     df = data_loader.load_and_preprocess_all(udemy_path, dicoding_path, coursera_path)
     
@@ -123,9 +123,6 @@ def load_or_train_models(udemy_path, dicoding_path, coursera_path, force_retrain
         for text in df_processed['combined_text']
     ])
     
-    # Create Word2Vec recommender
-    word2vec_recommender = Word2VecRecommender(verbose=True)
-    word2vec_recommender.fit(df_processed, word2vec_vectors)
     
     # Create content-based recommender
     feature_matrices = {
@@ -149,7 +146,6 @@ def load_or_train_models(udemy_path, dicoding_path, coursera_path, force_retrain
     # Create a dictionary to hold all recommenders
     recommenders = {
         'tfidf_recommender': tfidf_recommender,
-        'word2vec_recommender': word2vec_recommender,
         'content_recommender': content_recommender,
         'tfidf_vectorizer': feature_eng.tfidf_vectorizer,
         'word2vec_model': feature_eng.word2vec_model,
@@ -777,7 +773,7 @@ def show_dashboard_page():
         with col3:
             st.link_button(f"Kunjungi {platform_name}", f"https://www.{platform_name.lower()}.com/", use_container_width=True)
         
-        st.markdown("---")
+        # st.markdown("---")
         
         # Add table header
         st.subheader("Daftar Kursus yang Tersedia:")
@@ -848,6 +844,45 @@ def show_dashboard_page():
         display_course_list(courses, platform_name, f'page_{platform_name.lower()}')
         st.markdown("---")
 
+def show_welcome_message():
+    """Show welcome message when system is not yet started"""
+    st.title("📚 Selamat Datang di Sistem Rekomendasi Kursus Online")
+    
+    # Create three columns for platform logos
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.image("Foto/udemy.png", caption="Udemy", use_container_width=True)
+    with col2:
+        st.image("Foto/coursera.svg", caption="Coursera", use_container_width=True)
+    with col3:
+        st.image("Foto/dicoding.jpeg", caption="Dicoding", use_container_width=True)
+    
+    st.markdown("""
+    ### 🎯 Tentang Sistem
+    Sistem ini dirancang untuk membantu Anda menemukan kursus online yang paling sesuai dengan kebutuhan belajar Anda. 
+    Dengan menggunakan teknologi AI dan machine learning, sistem akan menganalisis preferensi Anda dan memberikan rekomendasi 
+    kursus yang paling relevan dari berbagai platform seperti:
+    
+    - 🎓 **Coursera** - Kursus dari universitas dan institusi ternama dunia
+    - 💻 **Dicoding** - Platform pembelajaran coding terkemuka di Indonesia
+    - 📱 **Udemy** - Marketplace kursus online global dengan berbagai topik
+    
+    ### 🚀 Cara Memulai
+    1. Klik tombol **"Mulai"** di sidebar untuk memuat sistem
+    2. Pilih halaman yang ingin Anda jelajahi:
+       - 📊 **Dashboard** - Lihat daftar lengkap kursus dari setiap platform
+       - 🎯 **Rekomendasi** - Dapatkan rekomendasi kursus sesuai kebutuhan Anda
+       - 📈 **Statistik** - Eksplorasi statistik dan insight dari dataset
+    
+    ### ⚡ Fitur Utama
+    - 🔍 Pencarian kursus berdasarkan tujuan pembelajaran
+    - 💡 Rekomendasi personal menggunakan AI
+    - 📊 Analisis mendalam tentang kursus
+    - 💰 Filter berdasarkan harga, level, durasi, dan platform
+    - 🌐 Dukungan multi-bahasa (Indonesia & Inggris)
+    """)
+
 def main():
     """Main function for the Streamlit app"""
     # Page configuration
@@ -870,13 +905,17 @@ def main():
             )
             st.session_state.recommenders = recommenders
             st.session_state.df = df
-            # st.sidebar.success("Model berhasil dimuat!")
     
     # Navigation
     page = st.sidebar.radio(
         "Pilih Halaman:",
         ["Dashboard", "Rekomendasi", "Statistik"]
     )
+    
+    # Check if system is started
+    if 'recommenders' not in st.session_state or 'df' not in st.session_state:
+        show_welcome_message()
+        return
     
     # Display selected page
     if page == "Dashboard":
@@ -885,8 +924,6 @@ def main():
         show_recommendation_page_fixed()
     elif page == "Statistik":
         show_statistics_page()
-    # elif page == "Evaluasi":
-    #     show_evaluation_page()
 
 if __name__ == "__main__":
     main() 

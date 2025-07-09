@@ -17,61 +17,27 @@ class BaseRecommender:
     """Base class for all recommender models"""
     
     def __init__(self, name: str, verbose: bool = True):
-        """
-        Initialize base recommender
-        
-        Args:
-            name: Name of the recommender
-            verbose: Whether to print additional information
-        """
+
         self.name = name
         self.verbose = verbose
         self.is_fitted = False
         self.data = None
         
     def _log_time(self, start_time: float, operation: str):
-        """
-        Log time taken for an operation
-        
-        Args:
-            start_time: Start time
-            operation: Name of the operation
-        """
         if self.verbose:
             elapsed = time.time() - start_time
             logger.info(f"[{self.name}] {operation} completed in {elapsed:.2f} seconds")
     
     def fit(self, data: pd.DataFrame, **kwargs):
-        """
-        Fit the recommender model
-        
-        Args:
-            data: Input DataFrame
-            **kwargs: Additional keyword arguments
-        """
+
         raise NotImplementedError("Subclasses must implement this method")
     
     def recommend(self, query: Any, top_n: int = 5, **kwargs) -> pd.DataFrame:
-        """
-        Generate recommendations
-        
-        Args:
-            query: Query input
-            top_n: Number of recommendations to return
-            **kwargs: Additional keyword arguments
-            
-        Returns:
-            DataFrame with recommendations
-        """
+
         raise NotImplementedError("Subclasses must implement this method")
     
     def save(self, path: Union[str, Path]):
-        """
-        Save the model to disk
-        
-        Args:
-            path: Path to save the model
-        """
+ 
         if not self.is_fitted:
             logger.warning(f"[{self.name}] Model not fitted, nothing to save")
             return
@@ -86,15 +52,7 @@ class BaseRecommender:
     
     @classmethod
     def load(cls, path: Union[str, Path]):
-        """
-        Load the model from disk
-        
-        Args:
-            path: Path to load the model from
-            
-        Returns:
-            Loaded model
-        """
+
         try:
             with open(path, 'rb') as f:
                 model = pickle.load(f)
@@ -115,15 +73,7 @@ class TFIDFRecommender(BaseRecommender):
         self.feature_names = None
     
     def fit(self, data: pd.DataFrame, tfidf_matrix: np.ndarray, feature_names: List[str], **kwargs):
-        """
-        Fit the TF-IDF recommender
-        
-        Args:
-            data: Input DataFrame
-            tfidf_matrix: TF-IDF matrix
-            feature_names: TF-IDF feature names
-            **kwargs: Additional keyword arguments
-        """
+ 
         start_time = time.time()
         
         self.data = data
@@ -136,18 +86,7 @@ class TFIDFRecommender(BaseRecommender):
     
     def recommend(self, query_vector: np.ndarray, top_n: int = 5, 
                  filter_dict: Optional[Dict] = None, **kwargs) -> pd.DataFrame:
-        """
-        Generate recommendations based on TF-IDF similarity
-        
-        Args:
-            query_vector: Query vector in TF-IDF space
-            top_n: Number of recommendations to return
-            filter_dict: Dictionary of filters to apply
-            **kwargs: Additional keyword arguments
-            
-        Returns:
-            DataFrame with recommendations
-        """
+
         if not self.is_fitted:
             logger.warning("Model not fitted yet")
             return pd.DataFrame()
@@ -205,15 +144,7 @@ class TFIDFRecommender(BaseRecommender):
         return recommendations
     
     def _filter_data(self, filter_dict: Dict) -> List[int]:
-        """
-        Filter data based on criteria
-        
-        Args:
-            filter_dict: Dictionary of filters to apply
-            
-        Returns:
-            List of indices matching the filters
-        """
+
         df = self.data
         mask = pd.Series([True] * len(df), index=df.index)
         
@@ -231,103 +162,6 @@ class TFIDFRecommender(BaseRecommender):
         return df[mask].index.tolist()
 
 
-class Word2VecRecommender(BaseRecommender):
-    """Recommender based on Word2Vec embeddings"""
-    
-    def __init__(self, verbose: bool = True):
-        """Initialize Word2Vec recommender"""
-        super().__init__(name="Word2Vec Recommender", verbose=verbose)
-        self.course_vectors = None
-    
-    def fit(self, data: pd.DataFrame, course_vectors: np.ndarray, **kwargs):
-        """
-        Fit the Word2Vec recommender
-        
-        Args:
-            data: Input DataFrame
-            course_vectors: Course vectors from Word2Vec
-            **kwargs: Additional keyword arguments
-        """
-        start_time = time.time()
-        
-        self.data = data
-        self.course_vectors = course_vectors
-        self.is_fitted = True
-        
-        self._log_time(start_time, "Model fitting")
-        return self
-    
-    def recommend(self, query_vector: np.ndarray, top_n: int = 5, 
-                 filter_dict: Optional[Dict] = None, **kwargs) -> pd.DataFrame:
-        """
-        Recommend courses based on Word2Vec similarity
-        
-        Args:
-            query_vector: Query vector
-            top_n: Number of recommendations to return
-            filter_dict: Dictionary of filters to apply
-            **kwargs: Additional keyword arguments
-            
-        Returns:
-            DataFrame with recommendations
-        """
-        start_time = time.time()
-        
-        # Check if model is fitted
-        if not self.is_fitted:
-            logger.error("Model not fitted yet")
-            return pd.DataFrame()
-        
-        # Apply filters if any
-        data_subset = self.data.copy()
-        if filter_dict:
-            for key, value in filter_dict.items():
-                if key in data_subset.columns:
-                    if key == 'max_price':
-                        data_subset = data_subset[data_subset['price'] <= value]
-                    else:
-                        data_subset = data_subset[data_subset[key] == value]
-        
-        # Get indices of filtered data
-        filtered_indices = data_subset.index.tolist()
-        
-        # Check if we have any courses left after filtering
-        if not filtered_indices:
-            logger.warning("No courses left after filtering")
-            return pd.DataFrame()
-        
-        # Get course vectors for filtered courses
-        filtered_vectors = self.course_vectors[filtered_indices]
-        
-        # Check query vector
-        if query_vector is None or query_vector.size == 0:
-            logger.warning("Query vector is empty")
-            return data_subset.head(top_n)
-        
-        # Normalize query vector for better similarity calculation
-        query_vector_norm = query_vector / (np.linalg.norm(query_vector) + 1e-8)
-        
-        # Calculate similarity
-        try:
-            similarities = cosine_similarity(query_vector_norm.reshape(1, -1), filtered_vectors)[0]
-        except Exception as e:
-            logger.error(f"Error calculating similarity: {e}")
-            return data_subset.head(top_n)
-        
-        # Get top N indices
-        top_indices = np.argsort(similarities)[::-1][:top_n]
-        
-        # Get recommendations
-        recommendations = data_subset.iloc[top_indices].copy()
-        
-        # Add similarity scores
-        recommendations['similarity_score'] = similarities[top_indices]
-        recommendations['w2v_score'] = similarities[top_indices]
-        
-        self._log_time(start_time, "Recommendation generation")
-        
-        return recommendations
-
 
 class ContentBasedRecommender(BaseRecommender):
     """Content-based recommender that combines multiple feature matrices"""
@@ -342,15 +176,7 @@ class ContentBasedRecommender(BaseRecommender):
     
     def fit(self, data: pd.DataFrame, feature_matrices: Dict[str, np.ndarray], 
            feature_weights: Dict[str, float], feature_names: Optional[List[str]] = None, **kwargs):
-        """
-        Fit the recommender with feature matrices and weights
         
-        Args:
-            data: DataFrame with course data
-            feature_matrices: Dictionary of feature matrices
-            feature_weights: Dictionary of feature weights
-            feature_names: Optional list of feature names
-        """
         self.data = data
         self.feature_matrices = feature_matrices
         self.feature_weights = feature_weights
@@ -364,17 +190,7 @@ class ContentBasedRecommender(BaseRecommender):
 
     def recommend(self, query_vectors: Dict[str, np.ndarray], top_n: int = 5, 
                  filter_dict: Optional[Dict] = None, **kwargs) -> pd.DataFrame:
-        """
-        Get recommendations based on query vectors
-        
-        Args:
-            query_vectors: Dictionary of query vectors for each feature
-            top_n: Number of recommendations to return
-            filter_dict: Dictionary of filters to apply
-            
-        Returns:
-            DataFrame with recommendations
-        """
+
         start_time = time.time()
         
         # Filter data if needed
@@ -479,15 +295,6 @@ class ContentBasedRecommender(BaseRecommender):
         return recommendations
     
     def _filter_data(self, filter_dict: Dict) -> List[int]:
-        """
-        Filter data based on criteria
-        
-        Args:
-            filter_dict: Dictionary of filters to apply
-            
-        Returns:
-            List of indices matching the filters
-        """
         df = self.data
         mask = pd.Series([True] * len(df), index=df.index)
         

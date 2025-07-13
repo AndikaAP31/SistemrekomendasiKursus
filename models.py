@@ -9,7 +9,6 @@ from pathlib import Path
 import pickle
 import scipy.sparse
 
-# Configure logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -41,7 +40,6 @@ class BaseRecommender:
         if not self.is_fitted:
             logger.warning(f"[{self.name}] Model not fitted, nothing to save")
             return
-        
         try:
             os.makedirs(os.path.dirname(path), exist_ok=True)
             with open(path, 'wb') as f:

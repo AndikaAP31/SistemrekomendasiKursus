@@ -251,19 +251,3 @@ def get_recommendations(query_text, recommenders, filter_dict=None, top_n=5):
     
     return content_recs
 
-if __name__ == "__main__":
-    # Fix recommenders
-    recommenders = fix_recommenders()
-    
-    if recommenders is not None:
-        print("Word2Vec model fixed successfully!")
-        
-        # Test with a query
-        query = "belajar data"
-        recs = get_recommendations(query, recommenders)
-        
-        print(f"\nRecommendations for '{query}':")
-        print(recs[['course_title', 'platform', 'similarity_score', 'tfidf_score', 'word2vec_score', 
-                   'tfidf_contribution', 'word2vec_contribution']])
-    else:
-        print("Failed to fix Word2Vec model.")

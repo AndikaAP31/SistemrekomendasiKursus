@@ -29,12 +29,7 @@ def clean_text(text: Union[str, float, None]) -> str:
 def convert_k_to_number(value: Union[str, float, None]) -> float:
     """
     Convert values like '1.5k', '39.3k', '244', '14k' to numeric values
-    
-    Args:
-        value: String or numeric value, possibly with 'k' suffix
-        
-    Returns:
-        Numeric value after conversion
+
     """
     if pd.isna(value):
         return 0
@@ -155,18 +150,3 @@ def normalize_weights(weights: List[float]) -> List[float]:
         # If all weights are 0, return equal weights
         return [1.0/len(weights)] * len(weights)
     return [w/total for w in weights]
-
-# def cosine_similarity_safe(vec1: np.ndarray, vec2: np.ndarray) -> float:
-#     """
-
-#     Returns:
-#         Cosine similarity value between -1 and 1
-#     """
-#     if np.all(vec1 == 0) or np.all(vec2 == 0):
-#         return 0.0
-    
-#     dot_product = np.dot(vec1, vec2)
-#     norm_vec1 = np.linalg.norm(vec1)
-#     norm_vec2 = np.linalg.norm(vec2)
-    
-#     return safe_division(dot_product, norm_vec1 * norm_vec2) 

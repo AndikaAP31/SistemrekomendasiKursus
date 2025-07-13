@@ -14,7 +14,6 @@ class DataLoader:
     """
     Class for loading and preprocessing course data from different platforms
     """
-    
     def __init__(self, verbose: bool = True):
      
         self.verbose = verbose
@@ -199,8 +198,7 @@ class DataLoader:
             }
         }
         
-        # Add small random variation to avoid all courses having exactly the same price
-        # Use consistent seed based on level and duration to ensure reproducibility
+
         seed = hash(f"{level}_{duration_category}") % 10000
         rng = np.random.RandomState(seed)
         
@@ -228,15 +226,7 @@ class DataLoader:
     
    
     def load_coursera_data(self, file_path: str) -> pd.DataFrame:
-        """
-        Load and preprocess Coursera dataset
-        
-        Args:
-            file_path: Path to Coursera CSV file
-            
-        Returns:
-            Preprocessed Coursera DataFrame
-        """
+   
         try:
             df_coursera = pd.read_csv(file_path)
             if self.verbose:
@@ -250,7 +240,6 @@ class DataLoader:
             duration_cols = ['course_time', 'duration', 'course_duration', 'length', 'time', 'estimated_time']
             level_cols = ['course_difficulty', 'level', 'difficulty', 'course_level', 'skill_level']
             subject_cols = ['course_skills', 'category', 'subject', 'topic', 'course_category', 'skills']
-            # cert_type_cols = ['course_certificate_type', 'certificate_type', 'cert_type']
             
             # Map course title
             for col in title_cols:
@@ -275,7 +264,7 @@ class DataLoader:
                     coursera_mapped['level'] = df_coursera[col]
                     break
             else:
-                coursera_mapped['level'] = 'Intermediate'  # Most Coursera courses are intermediate
+                coursera_mapped['level'] = 'Intermediate'  
             
             # Map subject/category - handle list format in Coursera data
             for col in subject_cols:
@@ -289,7 +278,7 @@ class DataLoader:
                         coursera_mapped['subject'] = df_coursera[col]
                     break
             else:
-                coursera_mapped['subject'] = 'Computer Science'  # Most Coursera courses are in CS
+                coursera_mapped['subject'] = 'Computer Science'  
             
             # Menggunakan level dan durasi untuk menentukan harga
             coursera_mapped['price'] = coursera_mapped.apply(
@@ -320,10 +309,8 @@ class DataLoader:
                 coursera_mapped['num_subscribers'] = df_coursera['course_students_enrolled'].astype(str).str.replace(',', '').str.replace('"', '').astype(float).fillna(0).astype(int)
               
             if 'course_reviews_num' in df_coursera.columns:
-                # Menggunakan convert_k_to_number untuk nilai dengan format 'k'
                 coursera_mapped['num_reviews'] = df_coursera['course_reviews_num'].apply(convert_k_to_number)
             
-            # Verify final price distribution
             if self.verbose:
                 price_counts = coursera_mapped['price'].value_counts().head(10)
                 logger.info(f"Final Coursera price distribution (top 10): {dict(zip(price_counts.index.round(0), price_counts.values))}")
